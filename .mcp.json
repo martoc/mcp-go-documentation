@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "go-documentation": {
+      "command": "uv",
+      "args": ["run", "mcp-go-documentation"]
+    }
+  }
+}
