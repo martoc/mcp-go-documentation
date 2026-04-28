@@ -9,7 +9,13 @@ This is an MCP (Model Context Protocol) server that provides search and retrieva
 - SQLite FTS5 for full-text search with BM25 ranking
 - Python-frontmatter for parsing markdown files with YAML frontmatter
 - A bespoke regex-based extractor for HTML files with the `<!--{ ... }-->` JSON metadata block used by `golang/website`
-- Sparse Git checkout for efficient cloning of the `_content` documentation directory
+- A line-based Go source parser that extracts package and exported-declaration godoc from `golang/go` `src/` (no Go toolchain required)
+- Sparse Git checkout for efficient cloning of `_content` from `golang/website` and `src/` from `golang/go`
+
+The server indexes two sources:
+
+1. The narrative documentation under `_content/` in [`golang/website`](https://github.com/golang/website) — Effective Go, blog posts, the Tour, references, etc.
+2. The Go standard library packages under `src/` in [`golang/go`](https://github.com/golang/go), exposed under the `std` section so paths look like `std/fmt`, `std/net/http`, `std/encoding/json` (matching [pkg.go.dev/std](https://pkg.go.dev/std)).
 
 ## Code Principles
 
@@ -66,19 +72,20 @@ This is an MCP (Model Context Protocol) server that provides search and retrieva
 ```
 mcp-go-documentation/
 ├── src/mcp_go_documentation/
-│   ├── __init__.py         # Package initialisation
-│   ├── models.py           # Data models (Document, SearchResult, etc.)
-│   ├── database.py         # SQLite FTS5 database operations
-│   ├── parser.py           # Markdown and HTML file parser
-│   ├── indexer.py          # Documentation indexer
-│   ├── server.py           # FastMCP server implementation
-│   └── cli.py              # Command-line interface
-├── tests/                  # Test files
-├── data/                   # SQLite database storage
-├── pyproject.toml          # Project configuration
-├── Makefile                # Build automation
-├── Dockerfile              # Container configuration
-└── README.md               # Project documentation
+│   ├── __init__.py             # Package initialisation
+│   ├── models.py               # Data models (Document, SearchResult, etc.)
+│   ├── database.py             # SQLite FTS5 database operations
+│   ├── parser.py               # Markdown and HTML file parser (golang/website)
+│   ├── go_source_parser.py     # Go source parser for stdlib godoc extraction
+│   ├── indexer.py              # GoDocsIndexer + GoStdlibIndexer
+│   ├── server.py               # FastMCP server implementation
+│   └── cli.py                  # Command-line interface
+├── tests/                      # Test files
+├── data/                       # SQLite database storage
+├── pyproject.toml              # Project configuration
+├── Makefile                    # Build automation
+├── Dockerfile                  # Container configuration
+└── README.md                   # Project documentation
 ```
 
 ## MCP Tools
@@ -161,18 +168,27 @@ The `martoc/mcp-go-documentation` container image is published to Docker Hub wit
 
 ## Documentation URLs
 
-The Go documentation URL pattern:
+The website URL pattern:
 ```
 https://go.dev/{path}
 ```
 
-The parser strips `.md` and `.html` extensions and collapses `index.md` /
-`index.html` files to their parent directory when computing URLs.
+The website parser strips `.md` and `.html` extensions and collapses
+`index.md` / `index.html` files to their parent directory when computing URLs.
+
+The standard library URL pattern:
+```
+https://pkg.go.dev/{import_path}
+```
+
+For example `std/net/http` maps to `https://pkg.go.dev/net/http`.
 
 ## Source Content Layout
 
+### golang/website
+
 The `golang/website` repository keeps all human-readable content under
-`_content/`. The indexer walks that tree and indexes:
+`_content/`. The website indexer walks that tree and indexes:
 
 - `*.md` files with optional YAML frontmatter (handled with `python-frontmatter`)
 - `*.html` files with optional JSON metadata in a leading
@@ -181,15 +197,38 @@ The `golang/website` repository keeps all human-readable content under
 Asset directories such as `_content/css`, `_content/js`, `_content/fonts`,
 `_content/images`, and `_content/assets` are skipped.
 
+### golang/go
+
+The Go repository keeps the standard library under `src/`. The stdlib
+indexer walks that tree, treating each directory containing at least one
+non-test `.go` file as a package, and indexes:
+
+- the package doc comment (the comment block immediately preceding
+  `package <name>` in any non-test file)
+- exported top-level declarations (`func`, `type`, `const`, `var`) along
+  with their preceding doc comments — including grouped declarations
+  inside `type ( ... )`, `const ( ... )` and `var ( ... )` blocks
+
+Top-level directories `cmd/` and `vendor/`, and any `testdata` subtree, are
+skipped to align with the public `pkg.go.dev/std` view.
+
 ## Git Operations
 
-The indexer uses sparse checkout to clone only the `_content` directory:
+Both indexers use sparse checkout to clone only the relevant directories:
+
 ```bash
+# golang/website
 git clone --depth 1 --filter=blob:none --sparse --branch master ...
 git sparse-checkout set _content
+
+# golang/go
+git clone --depth 1 --filter=blob:none --sparse --branch master ...
+git sparse-checkout set src
 ```
 
-This significantly reduces clone time and disk usage.
+This significantly reduces clone time and disk usage. The `golang/go`
+sparse checkout is particularly important: a full clone is multiple
+gigabytes, but `src/` alone is ~140 MB.
 
 ## Performance Considerations
 

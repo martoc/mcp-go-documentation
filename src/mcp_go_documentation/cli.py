@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from mcp_go_documentation.database import DocumentDatabase
-from mcp_go_documentation.indexer import GoDocsIndexer
+from mcp_go_documentation.indexer import GoDocsIndexer, GoStdlibIndexer
 from mcp_go_documentation.server import DEFAULT_DB_PATH
 
 logging.basicConfig(
@@ -14,6 +14,8 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+VALID_SOURCES = ("website", "stdlib", "all")
 
 
 def cmd_index(args: argparse.Namespace) -> int:
@@ -31,14 +33,26 @@ def cmd_index(args: argparse.Namespace) -> int:
     logger.info("Using database: %s", db_path)
 
     database = DocumentDatabase(db_path)
-    indexer = GoDocsIndexer(database)
 
     if args.rebuild:
-        count = indexer.rebuild_index(branch=args.branch)
-    else:
-        count = indexer.index_from_git(branch=args.branch)
+        logger.info("Clearing existing index...")
+        database.clear()
 
-    logger.info("Indexed %d documents", count)
+    total_indexed = 0
+
+    if args.source in ("website", "all"):
+        website_indexer = GoDocsIndexer(database)
+        website_count = website_indexer.index_from_git(branch=args.website_branch)
+        logger.info("Website pages indexed: %d", website_count)
+        total_indexed += website_count
+
+    if args.source in ("stdlib", "all"):
+        stdlib_indexer = GoStdlibIndexer(database)
+        stdlib_count = stdlib_indexer.index_from_git(ref=args.stdlib_ref)
+        logger.info("Standard library packages indexed: %d", stdlib_count)
+        total_indexed += stdlib_count
+
+    logger.info("Indexed %d documents in total", total_indexed)
     return 0
 
 
@@ -84,16 +98,33 @@ def main() -> int:
 
     index_parser = subparsers.add_parser("index", help="Index Go documentation")
     index_parser.add_argument(
-        "--branch",
-        "-b",
+        "--source",
+        "-s",
+        choices=VALID_SOURCES,
+        default="all",
+        help=(
+            "Which source to index: 'website' (golang/website _content), "
+            "'stdlib' (golang/go src/) or 'all' (default)."
+        ),
+    )
+    index_parser.add_argument(
+        "--website-branch",
         default="master",
-        help="Git branch to index (default: master)",
+        help="Git branch of golang/website to index (default: master).",
+    )
+    index_parser.add_argument(
+        "--stdlib-ref",
+        default="master",
+        help=(
+            "Git ref of golang/go to index — branch (master) or release tag "
+            "such as 'go1.26.2' (default: master)."
+        ),
     )
     index_parser.add_argument(
         "--rebuild",
         "-r",
         action="store_true",
-        help="Clear the existing index before indexing",
+        help="Clear the existing index before indexing.",
     )
     index_parser.set_defaults(func=cmd_index)
 

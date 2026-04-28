@@ -31,9 +31,14 @@ This guide provides detailed instructions for using the MCP Go Documentation Ser
 
 ## Indexing Documentation
 
+The indexer maintains a single SQLite database that combines two sources:
+
+- the [`golang/website`](https://github.com/golang/website) `_content/` directory (markdown and HTML pages such as Effective Go, the FAQ, blog posts, the Tour); and
+- the [`golang/go`](https://github.com/golang/go) `src/` directory — every standard library package extracted from godoc comments and exposed under the `std` section (matching [pkg.go.dev/std](https://pkg.go.dev/std)).
+
 ### Initial Indexing
 
-Index the Go documentation from the master branch:
+Index everything (both sources):
 
 ```bash
 uv run go-docs-index index
@@ -47,12 +52,24 @@ Clear the existing index and rebuild from scratch:
 uv run go-docs-index index --rebuild
 ```
 
-### Indexing a Specific Branch
-
-Index documentation from a specific Git branch:
+### Indexing a Single Source
 
 ```bash
-uv run go-docs-index index --branch master
+# Only the narrative content from golang/website
+uv run go-docs-index index --source website
+
+# Only the standard library packages from golang/go src/
+uv run go-docs-index index --source stdlib
+```
+
+### Pinning a Git Ref
+
+```bash
+# Index the website pages from the master branch
+uv run go-docs-index index --source website --website-branch master
+
+# Index the standard library at a specific Go release
+uv run go-docs-index index --source stdlib --stdlib-ref go1.26.2
 ```
 
 ### Index Statistics
@@ -196,8 +213,9 @@ Example response:
 
 ## Common Sections
 
-The Go documentation is organised into several sections, derived from the
-top-level directories under `_content/` in `golang/website`:
+The Go documentation is organised into several sections.  The website
+sections are derived from the top-level directories under `_content/` in
+`golang/website`; the `std` section comes from `golang/go` `src/`:
 
 - **doc**: Main reference documentation (Effective Go, the FAQ, install guides, tutorials)
 - **blog**: Blog posts published on go.dev
@@ -209,8 +227,19 @@ top-level directories under `_content/` in `golang/website`:
 - **talks**: Conference talks
 - **wiki**: Community-maintained articles
 - **root**: Top-level pages such as `about.md`, `help.md`, `index.md`
+- **std**: Standard library packages (one document per package; paths look like `std/fmt`, `std/net/http`, `std/encoding/json`)
 
 Use these section names with the `section` parameter to filter search results.
+
+### Reading a Standard Library Package
+
+```text
+Read documentation at path "std/net/http"
+```
+
+The returned content is rendered from godoc comments in the package's `.go`
+files: a package-level summary followed by an index of exported declarations
+and per-declaration signatures with their doc comments.
 
 ## Development Workflow
 
@@ -252,9 +281,14 @@ If the index build fails, try:
 
 1. Check your internet connection
 2. Verify Git is installed and accessible
-3. Try rebuilding with a different branch:
+3. Try rebuilding with explicit refs:
    ```bash
-   uv run go-docs-index index --rebuild --branch master
+   uv run go-docs-index index --rebuild \
+       --website-branch master --stdlib-ref master
+   ```
+4. If only the standard library clone is failing, you can isolate it:
+   ```bash
+   uv run go-docs-index index --source stdlib --stdlib-ref go1.26.2
    ```
 
 ### No Search Results
@@ -281,7 +315,9 @@ uv run go-docs-index index --database /path/to/custom.db
 
 ## Performance Considerations
 
-- **Initial indexing**: May take a few minutes depending on network speed
-- **Sparse checkout**: Only the `_content/` directory is cloned, reducing download size
+- **Initial indexing**: May take a few minutes depending on network speed; cloning
+  `golang/go` is the dominant cost (sparse checkout limits this to `src/`)
+- **Sparse checkout**: Only `_content/` from `golang/website` and `src/` from
+  `golang/go` are cloned, reducing download size considerably
 - **Search performance**: FTS5 with BM25 ranking provides fast, relevant results
 - **Memory usage**: Minimal during operation; database is SQLite-based
