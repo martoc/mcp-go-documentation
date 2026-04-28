@@ -2,7 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install git for cloning the golang/website repository at build time.
+# Install git for cloning the golang/website and golang/go repositories at
+# build time.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
@@ -18,8 +19,9 @@ COPY data/ data/
 # Install dependencies.
 RUN uv sync --no-dev
 
-# Bake the documentation index into the image at build time.
-RUN uv run go-docs-index index
+# Bake both the golang/website narrative pages and the golang/go standard
+# library package documentation into the index at build time.
+RUN uv run go-docs-index index --source all
 
 # Run the MCP server.
 CMD ["uv", "run", "mcp-go-documentation"]

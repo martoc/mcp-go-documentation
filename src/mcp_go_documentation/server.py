@@ -127,7 +127,9 @@ def search_documentation(
                full-text search with stemming (e.g., "module" matches
                "modules", "modular").
         section: Optional section to filter results. Common sections include:
-                 'doc', 'blog', 'ref', 'tour', 'gopls', 'talks', 'wiki'.
+                 'doc', 'blog', 'ref', 'tour', 'gopls', 'talks', 'wiki' for
+                 golang/website material, and 'std' for standard library
+                 package documentation.
         limit: Maximum number of results to return (default: 10, max: 50).
 
     Returns:
@@ -142,7 +144,8 @@ def read_documentation(path: str) -> str:
 
     Args:
         path: The relative path to the documentation file (e.g.,
-              'doc/effective_go.html' or 'blog/intro-generics.md').
+              'doc/effective_go.html', 'blog/intro-generics.md', or
+              'std/net/http' for a standard library package).
               This path is returned in search results.
 
     Returns:

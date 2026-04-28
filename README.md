@@ -4,15 +4,19 @@
 
 # MCP Go Documentation Server
 
-An MCP (Model Context Protocol) server that provides search and retrieval tools for [Go (Golang)](https://go.dev) documentation. This server enables AI assistants like Claude to search and read the official Go documentation directly, including the language specification, Effective Go, the modules reference, blog posts, and the rest of the content published from [`golang/website`](https://github.com/golang/website).
+An MCP (Model Context Protocol) server that provides search and retrieval tools for [Go (Golang)](https://go.dev) documentation. This server enables AI assistants like Claude to search and read the official Go documentation directly, including:
+
+- the language specification, Effective Go, the modules reference, blog posts, tour material and the rest of the narrative content published from [`golang/website`](https://github.com/golang/website); and
+- the **standard library package documentation** ([pkg.go.dev/std](https://pkg.go.dev/std)) extracted from godoc comments in [`golang/go`](https://github.com/golang/go) `src/` — covering every package such as `fmt`, `net/http`, `encoding/json`, `context`, `errors`, and so on.
 
 ## Features
 
 - **Full-text search** using SQLite FTS5 with BM25 ranking and Porter stemming
-- **Section filtering** to narrow search results by documentation category (`doc`, `blog`, `ref`, `tour`, `gopls`, etc.)
+- **Section filtering** to narrow search results by documentation category (`doc`, `blog`, `ref`, `tour`, `gopls`, `std`, etc.)
 - **Markdown and HTML support** for the mixed content under `_content/`
-- **Sparse checkout** for efficient cloning of only the `_content` directory
-- **Docker support** with the documentation index baked into the image at build time
+- **Standard library indexing** by extracting godoc-style comments from `golang/go` `src/` Go source files
+- **Sparse checkout** for efficient cloning of only the relevant directories
+- **Docker support** with both indices baked into the image at build time
 - **STDIO transport** for seamless MCP client integration
 
 ## Quick Start
@@ -59,7 +63,7 @@ The `martoc/mcp-go-documentation` container image is published to [Docker Hub](h
 | Image | `martoc/mcp-go-documentation` |
 | Platforms | `linux/amd64`, `linux/arm64` |
 | Base image | `python:3.12-slim` |
-| Index | Pre-built at image build time from `golang/website` `master` branch |
+| Index | Pre-built at image build time from `golang/website` `master` and `golang/go` `master` (`src/` only, sparse checkout) |
 
 ```bash
 # Pull the latest image
@@ -130,7 +134,9 @@ Search Go documentation using full-text search with stemming support.
 | `section` | string | No | None | Filter by section (e.g., doc, blog, ref) |
 | `limit` | integer | No | 10 | Maximum results (1-50) |
 
-**Common Sections:** `doc`, `blog`, `ref`, `tour`, `gopls`, `talks`, `wiki`, `solutions`, `learn`
+**Common Sections:** `doc`, `blog`, `ref`, `tour`, `gopls`, `talks`, `wiki`, `solutions`, `learn`, `std`
+
+The `std` section contains one document per standard library package (for example `std/fmt`, `std/net/http`, `std/encoding/json`).
 
 ### read_documentation
 
@@ -143,10 +149,16 @@ Retrieve the full content of a documentation page.
 ## CLI Commands
 
 ```bash
-# Build/rebuild the documentation index
+# Build/rebuild the full index (golang/website + standard library)
 uv run go-docs-index index
 uv run go-docs-index index --rebuild
-uv run go-docs-index index --branch master
+
+# Limit which source is indexed
+uv run go-docs-index index --source website
+uv run go-docs-index index --source stdlib
+
+# Pin a specific Go release tag for the standard library
+uv run go-docs-index index --source stdlib --stdlib-ref go1.26.2
 
 # Show index statistics
 uv run go-docs-index stats

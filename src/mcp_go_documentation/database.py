@@ -183,6 +183,16 @@ class DocumentDatabase:
             conn.execute("DELETE FROM documents")
             conn.commit()
 
+    def clear_section(self, section: str) -> None:
+        """Clear all documents within a single section.
+
+        Args:
+            section: Section name to remove.
+        """
+        with self._get_connection() as conn:
+            conn.execute("DELETE FROM documents WHERE section = ?", (section,))
+            conn.commit()
+
     def get_document_count(self) -> int:
         """Return the total number of indexed documents.
 
