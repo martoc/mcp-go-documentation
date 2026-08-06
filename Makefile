@@ -80,6 +80,11 @@ docker-run: ## Run MCP server in Docker
 	@echo "==> Running MCP server in Docker..."
 	docker run -i --rm $(DOCKER_IMAGE)
 
+.PHONY: docker-run-http
+docker-run-http: ## Run MCP server in Docker over HTTP transport on :8000
+	@echo "==> Running MCP server in Docker (HTTP transport)..."
+	docker run -p 8000:8000 --rm -e MCP_TRANSPORT=http $(DOCKER_IMAGE)
+
 .PHONY: help
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
