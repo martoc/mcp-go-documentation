@@ -28,6 +28,8 @@ RUN uv sync --locked --no-dev
 # library package documentation into the index at build time.
 RUN uv run --no-sync go-docs-index index --source all
 
+EXPOSE 8000
+
 # Run the MCP server directly from the baked venv so no dependency
 # resolution happens on container start.
 CMD ["/app/.venv/bin/mcp-go-documentation"]

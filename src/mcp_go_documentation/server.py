@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 
 from fastmcp import FastMCP
@@ -156,8 +157,19 @@ def read_documentation(path: str) -> str:
 
 
 def run_server() -> None:
-    """Run the MCP server with STDIO transport."""
-    mcp.run(transport="stdio")
+    """Run the MCP server.
+
+    Transport defaults to stdio for backward compatibility with existing
+    per-session Docker invocations. Set MCP_TRANSPORT=http to run as a
+    long-lived HTTP server instead, optionally with MCP_HOST/MCP_PORT.
+    """
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "stdio":
+        mcp.run(transport="stdio")
+    else:
+        host = os.environ.get("MCP_HOST", "0.0.0.0")  # noqa: S104 (containerised server, host-mapped port)
+        port = int(os.environ.get("MCP_PORT", "8000"))
+        mcp.run(transport="http", host=host, port=port)
 
 
 if __name__ == "__main__":
